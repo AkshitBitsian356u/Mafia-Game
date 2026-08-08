@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>MAFIA - The Online Party Game</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&family=Cinzel:wght@700;900&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background: radial-gradient(circle at center, #181824 0%, #09090e 100%);
+      color: #e2e8f0;
+    }
+    .cinzel { font-family: 'Cinzel', serif; }
+    .glass {
+      background: rgba(22, 27, 38, 0.7);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .glow-red { box-shadow: 0 0 25px rgba(239, 68, 68, 0.25); }
+    .glow-blue { box-shadow: 0 0 25px rgba(59, 130, 246, 0.25); }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center p-4">
+
+  <!-- APP CONTAINER -->
+  <div class="w-full max-w-4xl glass rounded-3xl p-6 md:p-8 shadow-2xl transition-all duration-500">
+    
+    <!-- HEADER -->
+    <header class="flex flex-col md:flex-row justify-between items-center pb-6 border-b border-white/10 gap-4">
+      <div>
+        <h1 class="text-3xl font-black tracking-wider text-red-500 cinzel">MAFIA</h1>
+        <p class="text-xs text-slate-400 mt-1">Trust No One. Deceive Everyone.</p>
+      </div>
+      <div id="roomBadge" class="hidden glass px-4 py-2 rounded-full text-xs font-semibold tracking-wide text-slate-300">
+        ROOM: <span id="displayRoomCode" class="text-red-400 font-bold"></span>
+      </div>
+    </header>
+
+    <!-- VIEWS -->
+
+    <!-- 1. LOGIN / LOBBY JOIN -->
+    <section id="loginView" class="mt-8 flex flex-col items-center gap-6">
+      <div class="text-center max-w-md">
+        <h2 class="text-xl font-bold text-slate-200">Enter the Underworld</h2>
+        <p class="text-sm text-slate-400 mt-1">Create a room or paste a link to join your friends.</p>
+      </div>
+
+      <div class="w-full max-w-sm flex flex-col gap-4">
+        <input id="usernameInput" type="text" placeholder="Your Name" class="w-full bg-slate-900/80 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-red-500 transition"/>
+        <input id="roomCodeInput" type="text" placeholder="Room Code (Optional)" class="w-full bg-slate-900/80 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-red-500 uppercase tracking-widest transition"/>
+        
+        <div class="flex gap-3">
+          <button id="createBtn" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold py-3 rounded-xl transition shadow-lg shadow-red-900/30">Create Room</button>
+          <button id="joinBtn" class="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-semibold py-3 rounded-xl transition border border-white/10">Join Room</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. WAITING LOBBY -->
+    <section id="lobbyView" class="hidden mt-8">
+      <div class="flex flex-col md:flex-row gap-8">
+        <div class="flex-1">
+          <h3 class="text-lg font-bold text-slate-200 mb-4">Players in Room (<span id="playerCount">0</span>)</h3>
+          <div id="playerList" class="grid grid-cols-2 gap-3"></div>
+        </div>
+        <div class="w-full md:w-64 flex flex-col justify-between gap-4 glass p-5 rounded-2xl">
+          <div>
+            <h4 class="font-bold text-sm text-slate-300 mb-2">Share Invite Link</h4>
+            <input id="inviteUrl" readonly type="text" class="w-full bg-slate-900/80 text-xs px-3 py-2 rounded-lg text-slate-400 border border-white/5 cursor-pointer" onclick="this.select(); document.execCommand('copy'); alert('Link copied!');"/>
+          </div>
+          <button id="startBtn" class="hidden w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-xl transition glow-red">Start Game</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. MAIN GAME SCREEN -->
+    <section id="gameView" class="hidden mt-6 space-y-6">
+      
+      <!-- STATUS BANNER & HIDDEN ROLE CARD -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <!-- Private Role Card -->
+        <div id="roleCard" class="glass p-5 rounded-2xl relative overflow-hidden group border border-white/10 cursor-pointer">
+          <div class="text-xs uppercase tracking-wider text-slate-400 font-bold">Your Identity (Secret)</div>
+          <div id="roleTitle" class="text-2xl font-black text-red-500 cinzel mt-1">???</div>
+          <p id="roleDesc" class="text-xs text-slate-400 mt-2">Hover or tap to inspect your private instructions.</p>
+        </div>
+
+        <!-- Public Revealed Info (Police) -->
+        <div class="glass p-5 rounded-2xl border border-blue-500/30 glow-blue">
+          <div class="text-xs uppercase tracking-wider text-blue-400 font-bold">Known Authority</div>
+          <div id="policeName" class="text-xl font-bold text-slate-100 mt-1">Searching...</div>
+          <p class="text-xs text-slate-400 mt-1">Police officer's public identity is visible to everyone.</p>
+        </div>
+
+        <!-- Phase & Timer -->
+        <div class="glass p-5 rounded-2xl flex flex-col justify-center items-center text-center">
+          <div id="phaseIndicator" class="text-xs uppercase font-extrabold tracking-widest px-3 py-1 rounded-full bg-amber-500/20 text-amber-300">DAY PHASE</div>
+          <div id="timerDisplay" class="text-4xl font-black mt-2 text-slate-100 font-mono">90s</div>
+        </div>
+      </div>
+
+      <!-- MAIN INTERACTION GRID -->
+      <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
+        
+        <!-- LIVING PLAYERS & ACTIONS (7 COLS) -->
+        <div class="md:col-span-7 flex flex-col gap-4">
+          <h3 class="text-sm font-bold text-slate-300 tracking-wider uppercase">Town Members</h3>
+          <div id="gamePlayerGrid" class="grid grid-cols-2 gap-3"></div>
+
+          <!-- Role Action Panel -->
+          <div id="actionPanel" class="hidden glass p-4 rounded-2xl border border-red-500/30">
+            <h4 id="actionTitle" class="font-bold text-sm text-red-400">Perform Night Action</h4>
+            <p id="actionPrompt" class="text-xs text-slate-400 mt-1">Select a target from the list above.</p>
+            <button id="confirmActionBtn" class="mt-3 w-full bg-red-600 hover:bg-red-700 text-white text-xs font-bold py-2 rounded-lg transition">Confirm Target</button>
+          </div>
+        </div>
+
+        <!-- CHAT & EVENT LOG (5 COLS) -->
+        <div class="md:col-span-5 flex flex-col h-96 glass rounded-2xl p-4 border border-white/10">
+          <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Town Square Chat</h3>
+          <div id="chatBox" class="flex-1 overflow-y-auto space-y-2 text-xs pr-2"></div>
+          <form id="chatForm" class="mt-3 flex gap-2">
+            <input id="chatInput" type="text" placeholder="Discuss your suspicions..." class="flex-1 bg-slate-900/90 border border-white/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-red-500"/>
+            <button type="submit" class="bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-xl text-xs font-bold">Send</button>
+          </form>
+        </div>
+
+      </div>
+    </section>
+
+  </div>
+
+  <script>
+    const socket = io();
+
+    // App State
+    let myRoomCode = null;
+    let myPlayerId = null;
+    let myRole = null;
+    let currentPhase = null;
+    let selectedTargetId = null;
+
+    // Check URL parameters for direct link join
+    const urlParams = new URLSearchParams(window.location.search);
+    const roomParam = urlParams.get('room');
+    if (roomParam) {
+      document.getElementById('roomCodeInput').value = roomParam;
+    }
+
+    // DOM Elements
+    const loginView = document.getElementById('loginView');
+    const lobbyView = document.getElementById('lobbyView');
+    const gameView = document.getElementById('gameView');
+    const roomBadge = document.getElementById('roomBadge');
+    const displayRoomCode = document.getElementById('displayRoomCode');
+
+    // Create Room
+    document.getElementById('createBtn').addEventListener('click', () => {
+      const name = document.getElementById('usernameInput').value.trim();
+      if (!name) return alert('Please enter your name.');
+      socket.emit('createRoom', { name });
+    });
+
+    // Join Room
+    document.getElementById('joinBtn').addEventListener('click', () => {
+      const name = document.getElementById('usernameInput').value.trim();
+      const roomCode = document.getElementById('roomCodeInput').value.trim();
+      if (!name || !roomCode) return alert('Enter both name and room code.');
+      socket.emit('joinRoom', { name, roomCode });
+    });
+
+    // Start Game
+    document.getElementById('startBtn').addEventListener('click', () => {
+      socket.emit('startGame', myRoomCode);
+    });
+
+    // Socket Responses
+    socket.on('roomCreated', ({ roomCode, playerId }) => setupLobby(roomCode, playerId, true));
+    socket.on('roomJoined', ({ roomCode, playerId }) => setupLobby(roomCode, playerId, false));
+
+    function setupLobby(roomCode, playerId, isHost) {
+      myRoomCode = roomCode;
+      myPlayerId = playerId;
+      displayRoomCode.innerText = roomCode;
+      roomBadge.classList.remove('hidden');
+
+      loginView.classList.add('hidden');
+      lobbyView.classList.remove('hidden');
+
+      const url = `${window.location.origin}?room=${roomCode}`;
+      document.getElementById('inviteUrl').value = url;
+
+      if (isHost) {
+        document.getElementById('startBtn').classList.remove('hidden');
+      }
+    }
+
+    socket.on('playerListUpdate', (players) => {
+      document.getElementById('playerCount').innerText = players.length;
+      const list = document.getElementById('playerList');
+      list.innerHTML = players.map(p => `
+        <div class="glass p-3 rounded-xl flex items-center justify-between text-xs">
+          <span class="font-bold text-slate-200">${p.name}</span>
+          ${p.id === myPlayerId ? '<span class="text-red-400 font-semibold">(You)</span>' : ''}
+        </div>
+      `).join('');
+    });
+
+    socket.on('errorMsg', (msg) => alert(msg));
+
+    // GAME START
+    socket.on('gameStarted', ({ myRole: role, policePlayer, players }) => {
+      myRole = role;
+      lobbyView.classList.add('hidden');
+      gameView.classList.remove('hidden');
+
+      // Update Private Role Info
+      document.getElementById('roleTitle').innerText = role;
+      document.getElementById('roleDesc').innerText = getRoleDescription(role);
+
+      // Reveal Public Police
+      document.getElementById('policeName').innerText = policePlayer ? policePlayer.name : 'None';
+    });
+
+    function getRoleDescription(role) {
+      switch(role) {
+        case 'MAFIA': return 'Eliminate villagers each night without getting caught.';
+        case 'DOCTOR': return 'Protect one person each night. Protect yourself to stay safe.';
+        case 'SEX_WORKER': return 'Visit someone at night. High risk, high reward.';
+        case 'POLICE': return 'Investigate suspects at night to uncover alignment.';
+        default: return 'Use discussion and voting during the day to find the Mafia.';
+      }
+    }
+
+    // PHASE CHANGES
+    socket.on('phaseChange', ({ phase, eliminatedNames, players, timeLeft }) => {
+      currentPhase = phase;
+      selectedTargetId = null;
+
+      const indicator = document.getElementById('phaseIndicator');
+      indicator.innerText = `${phase} PHASE`;
+      indicator.className = phase === 'NIGHT' 
+        ? 'text-xs uppercase font-extrabold tracking-widest px-3 py-1 rounded-full bg-purple-500/20 text-purple-300'
+        : 'text-xs uppercase font-extrabold tracking-widest px-3 py-1 rounded-full bg-amber-500/20 text-amber-300';
+
+      if (eliminatedNames && eliminatedNames.length > 0) {
+        appendLog(`Night Results: ${eliminatedNames.join(', ')} were eliminated!`, 'text-red-400');
+      } else if (phase === 'DAY') {
+        appendLog(`Night Results: Everyone survived the night!`, 'text-emerald-400');
+      }
+
+      renderPlayerGrid(players);
+      setupActionPanel();
+    });
+
+    socket.on('timerUpdate', (seconds) => {
+      document.getElementById('timerDisplay').innerText = `${seconds}s`;
+    });
+
+    // PLAYER GRID & SELECTION
+    function renderPlayerGrid(players) {
+      const grid = document.getElementById('gamePlayerGrid');
+      grid.innerHTML = players.map(p => `
+        <div onclick="selectTarget('${p.id}')" id="player-card-${p.id}" class="glass p-3 rounded-xl border ${p.isAlive ? 'border-white/10 hover:border-red-500/50 cursor-pointer' : 'border-red-900/30 opacity-40'} transition flex flex-col justify-between">
+          <div class="flex justify-between items-center text-xs">
+            <span class="font-bold ${p.isAlive ? 'text-slate-200' : 'text-slate-500 line-through'}">${p.name}</span>
+            ${p.id === myPlayerId ? '<span class="text-xs text-red-400 font-bold">(You)</span>' : ''}
+          </div>
+          <div class="text-[10px] text-slate-500 mt-2">${p.isAlive ? 'ALIVE' : 'ELIMINATED'}</div>
+        </div>
+      `).join('');
+    }
+
+    function selectTarget(id) {
+      selectedTargetId = id;
+      document.querySelectorAll('[id^="player-card-"]').forEach(el => el.classList.remove('border-red-500', 'bg-red-500/10'));
+      const card = document.getElementById(`player-card-${id}`);
+      if (card) card.classList.add('border-red-500', 'bg-red-500/10');
+    }
+
+    // ACTION PANEL CONTROL
+    function setupActionPanel() {
+      const panel = document.getElementById('actionPanel');
+      const title = document.getElementById('actionTitle');
+      const btn = document.getElementById('confirmActionBtn');
+
+      if (currentPhase === 'NIGHT' && ['MAFIA', 'DOCTOR', 'SEX_WORKER', 'POLICE'].includes(myRole)) {
+        panel.classList.remove('hidden');
+        title.innerText = `${myRole} Action`;
+        btn.onclick = () => {
+          if (!selectedTargetId) return alert('Select a target player first.');
+          socket.emit('submitNightAction', { roomCode: myRoomCode, targetId: selectedTargetId });
+          panel.classList.add('hidden');
+          appendLog('Action submitted to GOD.', 'text-purple-300');
+        };
+      } else if (currentPhase === 'DAY') {
+        panel.classList.remove('hidden');
+        title.innerText = 'Cast Your Vote';
+        btn.onclick = () => {
+          if (!selectedTargetId) return alert('Select a player to vote out.');
+          socket.emit('submitVote', { roomCode: myRoomCode, targetId: selectedTargetId });
+          panel.classList.add('hidden');
+          appendLog('Vote submitted.', 'text-amber-300');
+        };
+      } else {
+        panel.classList.add('hidden');
+      }
+    }
+
+    // POLICE RESULT
+    socket.on('policeResult', ({ targetName, result }) => {
+      alert(`POLICE REPORT: Is ${targetName} suspicious?\nResult: ${result}`);
+      appendLog(`Investigation on ${targetName}: ${result}`, 'text-blue-400');
+    });
+
+    // DAY RESULT
+    socket.on('dayResult', ({ lynchedPlayerName }) => {
+      if (lynchedPlayerName) {
+        appendLog(`Town Vote: ${lynchedPlayerName} was voted out!`, 'text-amber-400');
+      } else {
+        appendLog(`Town Vote: No consensus reached. No one was voted out.`, 'text-slate-400');
+      }
+    });
+
+    // GAME OVER
+    socket.on('gameOver', ({ winner, players }) => {
+      alert(`GAME OVER! Winner: ${winner}`);
+      appendLog(`GAME OVER! Winner: ${winner}`, 'text-red-500 font-bold');
+      renderPlayerGrid(players);
+    });
+
+    // CHAT
+    document.getElementById('chatForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const input = document.getElementById('chatInput');
+      const msg = input.value.trim();
+      if (!msg) return;
+      socket.emit('sendChatMessage', { roomCode: myRoomCode, message: msg });
+      input.value = '';
+    });
+
+    socket.on('chatMessage', ({ sender, message, role }) => {
+      const isPolice = role === 'POLICE';
+      appendLog(`${sender}${isPolice ? ' [POLICE]' : ''}: ${message}`, isPolice ? 'text-blue-300' : 'text-slate-300');
+    });
+
+    function appendLog(text, colorClass = 'text-slate-300') {
+      const box = document.getElementById('chatBox');
+      const entry = document.createElement('div');
+      entry.className = `p-1.5 rounded-lg bg-slate-900/50 ${colorClass}`;
+      entry.innerText = text;
+      box.appendChild(entry);
+      box.scrollTop = box.scrollHeight;
+    }
+  </script>
+</body>
+</html>
