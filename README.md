@@ -18,7 +18,7 @@ To keep games perfectly balanced regardless of lobby size, the server automatica
 
 *   **The 6-Player Rule (Doctors & Police):** The game starts with 1 Doctor and 1 Police officer. For every 6 players in the game (i.e., $k = \lfloor N/6 \rfloor$), the game adds $+k$ Doctors and $+k$ Police to the town. *(Example: A 12-player game will have 3 Doctors and 3 Police).*
 *   **The 9-Player Rule (Sex Workers):** The game starts with 1 Sex Worker. If there are more than 9 players in the lobby, the Sex Worker count is increased to 2.
-*   **The Mafia:** The Mafia scales automatically to roughly 25% of the lobby ($\lfloor N/4 \rfloor$).
+*   **The Mafia:** The game will always spawn exactly 1 Mafia member, regardless of the total lobby size.
 
 ---
 
