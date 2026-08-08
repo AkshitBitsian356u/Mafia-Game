@@ -21,8 +21,6 @@
     }
     .glow-red { box-shadow: 0 0 25px rgba(239, 68, 68, 0.25); }
     .glow-blue { box-shadow: 0 0 25px rgba(59, 130, 246, 0.25); }
-    
-    /* Animations for Endgame Screen */
     @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
     @keyframes scaleUp { from { transform: scale(0.9); } to { transform: scale(1); } }
     .animate-fade-in { animation: fadeIn 1s ease-out forwards; }
@@ -31,12 +29,12 @@
 </head>
 <body class="min-h-screen flex flex-col items-center justify-center p-4">
 
-  <!-- ENDGAME OVERLAY (Hidden by default) -->
+  <!-- ENDGAME OVERLAY -->
   <section id="endgameView" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-xl">
     <div class="text-center px-4 animate-scale-up">
       <h1 id="endgameTitle" class="text-6xl md:text-8xl font-black cinzel tracking-widest uppercase shadow-black drop-shadow-2xl"></h1>
       <p id="endgameSub" class="text-xl md:text-2xl text-slate-300 mt-6 font-semibold tracking-wide"></p>
-      <button onclick="location.reload()" class="mt-10 bg-white/10 hover:bg-white/20 border border-white/20 text-white px-8 py-3 rounded-full font-bold transition">Return to Lobby</button>
+      <button onclick="clearSessionAndReload()" class="mt-10 bg-white/10 hover:bg-white/20 border border-white/20 text-white px-8 py-3 rounded-full font-bold transition">Return to Menu</button>
     </div>
   </section>
 
@@ -49,28 +47,63 @@
         <h1 class="text-3xl font-black tracking-wider text-red-500 cinzel">MAFIA</h1>
         <p class="text-xs text-slate-400 mt-1">Trust No One. Deceive Everyone.</p>
       </div>
-      <div id="roomBadge" class="hidden glass px-4 py-2 rounded-full text-xs font-semibold tracking-wide text-slate-300">
-        ROOM: <span id="displayRoomCode" class="text-red-400 font-bold"></span>
+      <div class="flex flex-col md:flex-row gap-2">
+        <div id="playerBadge" class="hidden glass px-4 py-2 rounded-full text-xs font-semibold tracking-wide text-slate-300 border border-emerald-500/30">
+          NAME: <span id="displayPlayerName" class="text-emerald-400 font-bold"></span>
+        </div>
+        <div id="roomBadge" class="hidden glass px-4 py-2 rounded-full text-xs font-semibold tracking-wide text-slate-300">
+          ROOM: <span id="displayRoomCode" class="text-red-400 font-bold"></span>
+        </div>
       </div>
     </header>
 
     <!-- VIEWS -->
 
-    <!-- 1. LOGIN / LOBBY JOIN -->
-    <section id="loginView" class="mt-8 flex flex-col items-center gap-6">
+    <!-- 1. "AMONG US" STYLE MAIN MENU -->
+    <section id="mainMenuView" class="mt-8 flex flex-col items-center gap-8">
       <div class="text-center max-w-md">
-        <h2 class="text-xl font-bold text-slate-200">Enter the Underworld</h2>
-        <p class="text-sm text-slate-400 mt-1">Create a room or paste a link to join your friends.</p>
+        <h2 class="text-2xl font-bold text-slate-200">Main Menu</h2>
+        <input id="usernameInput" type="text" placeholder="Enter Your Name..." class="mt-4 w-full bg-slate-900/80 border border-white/10 rounded-xl px-4 py-3 text-center text-lg font-bold focus:outline-none focus:border-red-500 transition"/>
       </div>
 
-      <div class="w-full max-w-sm flex flex-col gap-4">
-        <input id="usernameInput" type="text" placeholder="Your Name" class="w-full bg-slate-900/80 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-red-500 transition"/>
-        <input id="roomCodeInput" type="text" placeholder="Room Code (Optional)" class="w-full bg-slate-900/80 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-red-500 uppercase tracking-widest transition"/>
+      <div class="w-full max-w-3xl grid grid-cols-1 md:grid-cols-3 gap-6">
         
-        <div class="flex gap-3">
-          <button id="createBtn" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold py-3 rounded-xl transition shadow-lg shadow-red-900/30">Create Room</button>
-          <button id="joinBtn" class="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-semibold py-3 rounded-xl transition border border-white/10">Join Room</button>
+        <!-- HOST -->
+        <div class="glass p-6 rounded-2xl flex flex-col gap-4 text-center border border-red-500/30 hover:bg-red-500/5 transition">
+          <h3 class="font-black tracking-widest text-red-400">HOST</h3>
+          <p class="text-xs text-slate-400 flex-1">Create a new game and invite your friends.</p>
+          <div class="flex gap-2">
+            <button id="createPublicBtn" class="flex-1 bg-red-600 hover:bg-red-700 text-white text-xs font-bold py-3 rounded-xl transition">PUBLIC</button>
+            <button id="createPrivateBtn" class="flex-1 bg-slate-800 hover:bg-slate-700 border border-white/10 text-white text-xs font-bold py-3 rounded-xl transition">PRIVATE</button>
+          </div>
         </div>
+
+        <!-- PUBLIC BROWSER -->
+        <div class="glass p-6 rounded-2xl flex flex-col gap-4 text-center border border-blue-500/30 hover:bg-blue-500/5 transition">
+          <h3 class="font-black tracking-widest text-blue-400">PUBLIC</h3>
+          <p class="text-xs text-slate-400 flex-1">Find and join open games around the world.</p>
+          <button id="findGameBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-3 rounded-xl transition">FIND GAME</button>
+        </div>
+
+        <!-- PRIVATE JOIN -->
+        <div class="glass p-6 rounded-2xl flex flex-col gap-4 text-center border border-amber-500/30 hover:bg-amber-500/5 transition">
+          <h3 class="font-black tracking-widest text-amber-400">PRIVATE</h3>
+          <p class="text-xs text-slate-400 flex-1">Join a game using a secret room code.</p>
+          <input id="roomCodeInput" type="text" placeholder="CODE" class="w-full bg-slate-900/80 border border-white/10 rounded-xl px-4 py-2 text-center text-sm focus:outline-none focus:border-amber-500 uppercase tracking-widest transition"/>
+          <button id="joinPrivateBtn" class="w-full bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold py-3 rounded-xl transition">JOIN ROOM</button>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- 1B. SERVER BROWSER -->
+    <section id="serverBrowserView" class="hidden mt-8">
+      <div class="flex justify-between items-center mb-6">
+        <h2 class="text-xl font-bold text-slate-200">Public Servers</h2>
+        <button id="backToMenuBtn" class="text-xs bg-slate-800 px-4 py-2 rounded-lg text-slate-300 hover:text-white transition">Back</button>
+      </div>
+      <div id="serverList" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- Servers injected here -->
       </div>
     </section>
 
@@ -93,40 +126,29 @@
 
     <!-- 3. MAIN GAME SCREEN -->
     <section id="gameView" class="hidden mt-6 space-y-6">
-      
-      <!-- STATUS BANNER & HIDDEN ROLE CARD -->
+      <!-- Role Cards & Status Banner -->
       <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <!-- Private Role Card -->
         <div id="roleCard" class="glass p-5 rounded-2xl relative overflow-hidden group border border-white/10 cursor-pointer">
           <div class="text-xs uppercase tracking-wider text-slate-400 font-bold">Your Identity</div>
           <div id="roleTitle" class="text-2xl font-black text-red-500 cinzel mt-1">???</div>
-          <p id="roleDesc" class="text-[10px] text-slate-400 mt-2 leading-tight">Hover or tap to inspect your private instructions.</p>
+          <p id="roleDesc" class="text-[10px] text-slate-400 mt-2 leading-tight"></p>
         </div>
-
-        <!-- Public Revealed Info (Police) -->
         <div class="glass p-5 rounded-2xl border border-blue-500/30">
-          <div class="text-xs uppercase tracking-wider text-blue-400 font-bold">Known Authority</div>
-          <div id="policeName" class="text-xl font-bold text-slate-100 mt-1">Searching...</div>
-          <p class="text-[10px] text-slate-400 mt-1 leading-tight">Public Police identity visible to everyone.</p>
+          <div class="text-xs uppercase tracking-wider text-blue-400 font-bold">Town Police</div>
+          <div id="policeName" class="text-lg font-bold text-slate-100 mt-1 truncate">Searching...</div>
         </div>
-
-        <!-- DEDICATED POLICE RESULT BOX (Hidden unless you are police getting a result) -->
         <div id="policeDedicatedBox" class="hidden glass p-5 rounded-2xl border border-blue-400 glow-blue flex flex-col justify-center">
           <div class="text-xs uppercase tracking-wider text-blue-300 font-bold">God's Response</div>
           <div id="policeBoxContent" class="text-sm font-semibold text-slate-100 mt-2"></div>
         </div>
-
-        <!-- Phase & Timer -->
         <div class="glass p-5 rounded-2xl flex flex-col justify-center items-center text-center md:col-span-1" id="timerContainer">
           <div id="phaseIndicator" class="text-[10px] uppercase font-extrabold tracking-widest px-3 py-1 rounded-full bg-amber-500/20 text-amber-300">DAY PHASE</div>
           <div id="timerDisplay" class="text-4xl font-black mt-2 text-slate-100 font-mono">--</div>
         </div>
       </div>
 
-      <!-- MAIN INTERACTION GRID -->
+      <!-- INTERACTION GRID -->
       <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
-        
-        <!-- LIVING PLAYERS & ACTIONS (7 COLS) -->
         <div class="md:col-span-7 flex flex-col gap-4">
           <h3 class="text-sm font-bold text-slate-300 tracking-wider uppercase flex justify-between">
             <span>Town Members</span>
@@ -134,7 +156,6 @@
           </h3>
           <div id="gamePlayerGrid" class="grid grid-cols-2 md:grid-cols-3 gap-3"></div>
 
-          <!-- Role Action Panel -->
           <div id="actionPanel" class="hidden glass p-4 rounded-2xl border border-red-500/30">
             <h4 id="actionTitle" class="font-bold text-sm text-red-400">Perform Action</h4>
             <p id="actionPrompt" class="text-xs text-slate-400 mt-1">Select a valid target from the list above.</p>
@@ -142,7 +163,6 @@
           </div>
         </div>
 
-        <!-- CHAT & EVENT LOG (5 COLS) -->
         <div class="md:col-span-5 flex flex-col h-96 glass rounded-2xl p-4 border border-white/10">
           <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Town Square Chat</h3>
           <div id="chatBox" class="flex-1 overflow-y-auto space-y-2 text-xs pr-2 pb-2"></div>
@@ -151,7 +171,6 @@
             <button type="submit" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition">Send</button>
           </form>
         </div>
-
       </div>
     </section>
 
@@ -167,53 +186,132 @@
     let currentPhase = null;
     let selectedTargetId = null;
     let globalPlayers = [];
-
-    // Check URL parameters for direct link join
-    const urlParams = new URLSearchParams(window.location.search);
-    const roomParam = urlParams.get('room');
-    if (roomParam) {
-      document.getElementById('roomCodeInput').value = roomParam;
-    }
+    let myName = null;
 
     // DOM Elements
-    const loginView = document.getElementById('loginView');
-    const lobbyView = document.getElementById('lobbyView');
-    const gameView = document.getElementById('gameView');
-    const roomBadge = document.getElementById('roomBadge');
-    const displayRoomCode = document.getElementById('displayRoomCode');
+    const views = {
+      menu: document.getElementById('mainMenuView'),
+      browser: document.getElementById('serverBrowserView'),
+      lobby: document.getElementById('lobbyView'),
+      game: document.getElementById('gameView')
+    };
 
-    // Create Room
-    document.getElementById('createBtn').addEventListener('click', () => {
+    function showView(viewName) {
+      Object.values(views).forEach(v => v.classList.add('hidden'));
+      views[viewName].classList.remove('hidden');
+    }
+
+    // --- RECONNECTION LOGIC ---
+    window.addEventListener('DOMContentLoaded', () => {
+      const savedSession = sessionStorage.getItem('mafia_session');
+      if (savedSession) {
+        const { roomCode, playerId, name } = JSON.parse(savedSession);
+        myName = name;
+        document.getElementById('usernameInput').value = name;
+        socket.emit('reconnectPlayer', { roomCode, playerId, name });
+      }
+      
+      const urlParams = new URLSearchParams(window.location.search);
+      const roomParam = urlParams.get('room');
+      if (roomParam) {
+        document.getElementById('roomCodeInput').value = roomParam;
+      }
+    });
+
+    socket.on('reconnectSuccess', ({ roomCode, playerId, state, isHost }) => {
+      setupLobby(roomCode, playerId, isHost);
+      if (state !== 'LOBBY') {
+        socket.emit('requestGameState', roomCode); // Get full game context if already started
+      }
+    });
+
+    socket.on('reconnectFailed', () => {
+      sessionStorage.removeItem('mafia_session');
+      showView('menu');
+    });
+
+    function clearSessionAndReload() {
+      sessionStorage.removeItem('mafia_session');
+      location.reload();
+    }
+
+    // --- MENU ACTIONS ---
+    function getName() {
       const name = document.getElementById('usernameInput').value.trim();
-      if (!name) return alert('Please enter your name.');
-      socket.emit('createRoom', { name });
+      if (!name) { alert('Please enter your name first.'); return null; }
+      myName = name;
+      return name;
+    }
+
+    document.getElementById('createPublicBtn').addEventListener('click', () => {
+      const name = getName();
+      if (name) socket.emit('createRoom', { name, isPublic: true });
     });
 
-    // Join Room
-    document.getElementById('joinBtn').addEventListener('click', () => {
-      const name = document.getElementById('usernameInput').value.trim();
-      const roomCode = document.getElementById('roomCodeInput').value.trim();
-      if (!name || !roomCode) return alert('Enter both name and room code.');
-      socket.emit('joinRoom', { name, roomCode });
+    document.getElementById('createPrivateBtn').addEventListener('click', () => {
+      const name = getName();
+      if (name) socket.emit('createRoom', { name, isPublic: false });
     });
 
-    // Start Game
-    document.getElementById('startBtn').addEventListener('click', () => {
-      socket.emit('startGame', myRoomCode);
+    document.getElementById('joinPrivateBtn').addEventListener('click', () => {
+      const name = getName();
+      const code = document.getElementById('roomCodeInput').value.trim();
+      if (name && code) socket.emit('joinRoom', { name, roomCode: code });
     });
 
-    // Socket Responses
+    // --- SERVER BROWSER ---
+    document.getElementById('findGameBtn').addEventListener('click', () => {
+      socket.emit('requestServerList');
+    });
+
+    document.getElementById('backToMenuBtn').addEventListener('click', () => {
+      showView('menu');
+    });
+
+    socket.on('serverList', (servers) => {
+      showView('browser');
+      const list = document.getElementById('serverList');
+      if (servers.length === 0) {
+        list.innerHTML = '<p class="text-slate-400 text-sm">No public servers available. Host one!</p>';
+        return;
+      }
+      
+      list.innerHTML = servers.map(s => `
+        <div class="glass p-4 rounded-xl flex justify-between items-center border border-white/5 hover:border-blue-500/50 transition">
+          <div>
+            <h4 class="font-bold text-blue-300">Room: ${s.code}</h4>
+            <p class="text-xs text-slate-400">Host: ${s.hostName}</p>
+          </div>
+          <div class="flex items-center gap-4">
+            <span class="text-xs font-bold text-slate-300 bg-slate-900/80 px-2 py-1 rounded">${s.playerCount} Players</span>
+            <button onclick="joinPublic('${s.code}')" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-2 px-4 rounded-lg transition">Join</button>
+          </div>
+        </div>
+      `).join('');
+    });
+
+    window.joinPublic = (code) => {
+      const name = getName();
+      if (name) socket.emit('joinRoom', { name, roomCode: code });
+    };
+
+    // --- GAME LOBBY & SETUP ---
     socket.on('roomCreated', ({ roomCode, playerId }) => setupLobby(roomCode, playerId, true));
     socket.on('roomJoined', ({ roomCode, playerId }) => setupLobby(roomCode, playerId, false));
 
     function setupLobby(roomCode, playerId, isHost) {
       myRoomCode = roomCode;
       myPlayerId = playerId;
-      displayRoomCode.innerText = roomCode;
-      roomBadge.classList.remove('hidden');
+      
+      // Save Session
+      sessionStorage.setItem('mafia_session', JSON.stringify({ roomCode, playerId, name: myName }));
 
-      loginView.classList.add('hidden');
-      lobbyView.classList.remove('hidden');
+      document.getElementById('displayPlayerName').innerText = myName;
+      document.getElementById('displayRoomCode').innerText = roomCode;
+      document.getElementById('playerBadge').classList.remove('hidden');
+      document.getElementById('roomBadge').classList.remove('hidden');
+
+      showView('lobby');
 
       const url = `${window.location.origin}?room=${roomCode}`;
       document.getElementById('inviteUrl').value = url;
@@ -223,10 +321,13 @@
       }
     }
 
+    document.getElementById('startBtn').addEventListener('click', () => {
+      socket.emit('startGame', myRoomCode);
+    });
+
     socket.on('playerListUpdate', (players) => {
       document.getElementById('playerCount').innerText = players.length;
-      const list = document.getElementById('playerList');
-      list.innerHTML = players.map(p => `
+      document.getElementById('playerList').innerHTML = players.map(p => `
         <div class="glass p-3 rounded-xl flex items-center justify-between text-xs">
           <span class="font-bold text-slate-200">${p.name}</span>
           ${p.id === myPlayerId ? '<span class="text-red-400 font-semibold">(You)</span>' : ''}
@@ -236,16 +337,17 @@
 
     socket.on('errorMsg', (msg) => alert(msg));
 
-    // GAME START
-    socket.on('gameStarted', ({ myRole: role, policePlayer, players }) => {
+    // --- GAME ENGINE ---
+    socket.on('gameStarted', ({ myRole: role, policePlayers, players }) => {
       myRole = role;
       globalPlayers = players;
-      lobbyView.classList.add('hidden');
-      gameView.classList.remove('hidden');
+      showView('game');
 
       document.getElementById('roleTitle').innerText = role;
       document.getElementById('roleDesc').innerText = getRoleDescription(role);
-      document.getElementById('policeName').innerText = policePlayer ? policePlayer.name : 'None';
+      
+      const cops = policePlayers.map(p => p.name).join(', ');
+      document.getElementById('policeName').innerText = cops || 'None';
     });
 
     function getRoleDescription(role) {
@@ -258,7 +360,6 @@
       }
     }
 
-    // PHASE CHANGES
     socket.on('phaseChange', ({ phase, eliminatedNames, players, timeLeft }) => {
       currentPhase = phase;
       selectedTargetId = null;
@@ -267,11 +368,10 @@
       const indicator = document.getElementById('phaseIndicator');
       indicator.innerText = phase.replace('_', ' ') + ' PHASE';
       
-      // Update Timer & Indicator styles
       if (phase === 'NIGHT') {
         indicator.className = 'text-[10px] uppercase font-extrabold tracking-widest px-3 py-1 rounded-full bg-purple-500/20 text-purple-300';
         document.getElementById('timerDisplay').innerText = '∞';
-        document.getElementById('policeDedicatedBox').classList.add('hidden'); // hide police box at night start
+        document.getElementById('policeDedicatedBox').classList.add('hidden');
       } else if (phase === 'DAY_DISCUSSION') {
         indicator.className = 'text-[10px] uppercase font-extrabold tracking-widest px-3 py-1 rounded-full bg-blue-500/20 text-blue-300';
         if (eliminatedNames && eliminatedNames.length > 0) {
@@ -294,7 +394,6 @@
       }
     });
 
-    // PLAYER GRID & SELECTION
     function renderPlayerGrid(players) {
       const grid = document.getElementById('gamePlayerGrid');
       const me = players.find(p => p.id === myPlayerId);
@@ -308,7 +407,6 @@
       }
 
       grid.innerHTML = players.map(p => {
-        // Only allow pointer if player is alive AND I am alive
         const canClick = p.isAlive && me && me.isAlive;
         const pointerClass = canClick ? 'hover:border-red-500/50 cursor-pointer border-white/10' : 'border-red-900/30 opacity-40 cursor-not-allowed';
         const textClass = p.isAlive ? 'text-slate-200' : 'text-slate-500 line-through';
@@ -326,10 +424,10 @@
 
     function selectTarget(id) {
       const me = globalPlayers.find(p => p.id === myPlayerId);
-      if (!me || !me.isAlive) return; // Dead players can't click
+      if (!me || !me.isAlive) return; 
       
       const targetPlayer = globalPlayers.find(p => p.id === id);
-      if (!targetPlayer || !targetPlayer.isAlive) return; // Can't click dead people
+      if (!targetPlayer || !targetPlayer.isAlive) return;
 
       selectedTargetId = id;
       document.querySelectorAll('[id^="player-card-"]').forEach(el => el.classList.remove('border-red-500', 'bg-red-500/10'));
@@ -337,7 +435,6 @@
       if (card) card.classList.add('border-red-500', 'bg-red-500/10');
     }
 
-    // ACTION PANEL CONTROL
     function setupActionPanel() {
       const panel = document.getElementById('actionPanel');
       const title = document.getElementById('actionTitle');
@@ -345,7 +442,7 @@
 
       const me = globalPlayers.find(p => p.id === myPlayerId);
       if (!me || !me.isAlive) {
-        panel.classList.add('hidden'); // Hide for ghosts
+        panel.classList.add('hidden');
         return;
       }
 
@@ -368,23 +465,18 @@
           appendLog('Vote submitted.', 'text-amber-300');
         };
       } else {
-        // Hides panel during DAY_DISCUSSION phase
         panel.classList.add('hidden');
       }
     }
 
-    // POLICE DEDICATED RESULT BOX
     socket.on('policeResultBox', ({ targetName, result }) => {
       const box = document.getElementById('policeDedicatedBox');
       const content = document.getElementById('policeBoxContent');
-      
       content.innerHTML = `Is <span class="text-white">${targetName}</span> suspicious? <br/><span class="text-2xl font-black text-blue-300">${result}</span>`;
       box.classList.remove('hidden');
-      
       appendLog(`[SECRET] Investigation on ${targetName}: ${result}`, 'text-blue-400 font-bold');
     });
 
-    // DAY RESULT
     socket.on('dayResult', ({ lynchedPlayerName }) => {
       if (lynchedPlayerName) {
         appendLog(`Town Vote: ${lynchedPlayerName} was executed!`, 'text-red-400 font-bold');
@@ -393,13 +485,11 @@
       }
     });
 
-    // GAME OVER AESTHETIC SCREEN
     socket.on('gameOver', ({ winner, players }) => {
       const endgameView = document.getElementById('endgameView');
       const endgameTitle = document.getElementById('endgameTitle');
       const endgameSub = document.getElementById('endgameSub');
       
-      // Determine if current player won
       let iWon = false;
       if (winner === 'MAFIA' && myRole === 'MAFIA') iWon = true;
       if (winner === 'VILLAGERS' && myRole !== 'MAFIA') iWon = true;
@@ -412,18 +502,11 @@
         endgameTitle.className = "text-6xl md:text-8xl font-black cinzel tracking-widest uppercase shadow-black drop-shadow-2xl text-red-600";
       }
 
-      if (winner === 'MAFIA') {
-        endgameSub.innerText = "The Mafia has taken over the town.";
-      } else {
-        endgameSub.innerText = "The Town has successfully purged the Mafia.";
-      }
-
-      // Show overlay
+      endgameSub.innerText = winner === 'MAFIA' ? "The Mafia has taken over the town." : "The Town has successfully purged the Mafia.";
       endgameView.classList.remove('hidden');
       endgameView.classList.add('animate-fade-in');
     });
 
-    // CHAT
     document.getElementById('chatForm').addEventListener('submit', (e) => {
       e.preventDefault();
       const input = document.getElementById('chatInput');
