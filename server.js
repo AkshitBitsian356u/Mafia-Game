@@ -21,51 +21,54 @@ function resolveNightActions(room) {
   const deaths = new Set();
   const actions = room.nightActions;
 
-  const mafiaTarget = actions.MAFIA;
-  const doctorTarget = actions.DOCTOR;
-  const swTarget = actions.SEX_WORKER;
+  const mafiaTargetId = actions.MAFIA;
+  const doctorTargetId = actions.DOCTOR;
+  const swTargetId = actions.SEX_WORKER;
 
   const mafiaPlayer = Object.values(room.players).find(p => p.role === 'MAFIA');
   const doctorPlayer = Object.values(room.players).find(p => p.role === 'DOCTOR');
   const swPlayer = Object.values(room.players).find(p => p.role === 'SEX_WORKER');
 
-  if (mafiaTarget) {
+  if (mafiaTargetId) {
     let killBlocked = false;
 
-    // Doctor Protection Rule
-    if (doctorTarget === mafiaTarget) {
-      killBlocked = true; // Target protected by Doctor
+    // 1. Doctor Protection Rule
+    if (doctorTargetId === mafiaTargetId) {
+      killBlocked = true; // Target protected by Doctor (Self or others)
     }
 
-    // Sex Worker visiting Mafia Rule
-    if (swPlayer && swTarget === mafiaPlayer?.id && mafiaTarget === swPlayer.id) {
-      // If SW has sex with Mafia and Mafia targets SW -> Kill Fails
+    // 2. Sex Worker visiting Mafia Rule
+    if (swPlayer && mafiaPlayer && swTargetId === mafiaPlayer.id) {
+      // If SW has sex with Mafia:
+      // - Mafia tries to kill SW -> Fails (killBlocked)
+      // - Mafia tries to kill someone else -> Also Fails (killBlocked)
       killBlocked = true;
     }
 
     if (!killBlocked) {
-      if (swPlayer && mafiaTarget === swPlayer.id) {
+      // 3. Mafia successfully kills
+      if (swPlayer && mafiaTargetId === swPlayer.id) {
         // Mafia targets Sex Worker
         deaths.add(swPlayer.id);
-        // If SW was having sex with Person X, Person X dies too
-        if (swTarget && swTarget !== mafiaPlayer?.id) {
-          deaths.add(swTarget);
+        // If SW was having sex with Person X (who isn't Mafia), Person X dies too
+        if (swTargetId && swTargetId !== mafiaPlayer?.id) {
+          deaths.add(swTargetId);
         }
       } else {
         // Mafia targets Person X
-        deaths.add(mafiaTarget);
+        deaths.add(mafiaTargetId);
         // If SW was having sex with Person X, SW dies too
-        if (swPlayer && swTarget === mafiaTarget) {
+        if (swPlayer && swTargetId === mafiaTargetId) {
           deaths.add(swPlayer.id);
         }
       }
     }
   }
 
-  // Apply Deaths
+  // Apply Deaths strictly to those currently alive
   const eliminatedNames = [];
   deaths.forEach(id => {
-    if (room.players[id]) {
+    if (room.players[id] && room.players[id].isAlive) {
       room.players[id].isAlive = false;
       eliminatedNames.push(room.players[id].name);
     }
@@ -76,6 +79,7 @@ function resolveNightActions(room) {
 
 // Police Investigation Logic (Probabilities)
 function investigatePlayer(targetPlayer) {
+  if (!targetPlayer) return 'NO';
   const role = targetPlayer.role;
   if (role === 'MAFIA' || role === 'SEX_WORKER') return 'MAYBE';
   if (role === 'DOCTOR') return 'NO';
@@ -105,7 +109,7 @@ io.on('connection', (socket) => {
     rooms[roomCode] = {
       code: roomCode,
       host: socket.id,
-      state: 'LOBBY', // LOBBY, NIGHT, DAY
+      state: 'LOBBY', // LOBBY, NIGHT, DAY_DISCUSSION, DAY_VOTE
       timer: null,
       timeLeft: 0,
       players: {},
@@ -129,12 +133,8 @@ io.on('connection', (socket) => {
   // Join Room
   socket.on('joinRoom', ({ name, roomCode }) => {
     const room = rooms[roomCode?.toUpperCase()];
-    if (!room) {
-      return socket.emit('errorMsg', 'Room not found.');
-    }
-    if (room.state !== 'LOBBY') {
-      return socket.emit('errorMsg', 'Game already in progress.');
-    }
+    if (!room) return socket.emit('errorMsg', 'Room not found.');
+    if (room.state !== 'LOBBY') return socket.emit('errorMsg', 'Game already in progress.');
 
     room.players[socket.id] = {
       id: socket.id,
@@ -154,29 +154,20 @@ io.on('connection', (socket) => {
     if (!room || room.host !== socket.id) return;
 
     const playerIds = Object.keys(room.players);
-    if (playerIds.length < 4) {
-      return socket.emit('errorMsg', 'At least 4 players are required to start.');
-    }
+    if (playerIds.length < 4) return socket.emit('errorMsg', 'At least 4 players required.');
 
-    // Role assignment pool
     const rolesPool = ['MAFIA', 'DOCTOR', 'SEX_WORKER', 'POLICE'];
     while (rolesPool.length < playerIds.length) {
       rolesPool.push('VILLAGER');
     }
-
-    // Shuffle roles
     rolesPool.sort(() => Math.random() - 0.5);
 
     playerIds.forEach((id, idx) => {
       room.players[id].role = rolesPool[idx];
       room.players[id].isAlive = true;
-
-      if (rolesPool[idx] === 'POLICE') {
-        room.policeRevealedId = id;
-      }
+      if (rolesPool[idx] === 'POLICE') room.policeRevealedId = id;
     });
 
-    // Send private role to each individual + broadcast police identity to everyone
     playerIds.forEach((id) => {
       io.to(id).emit('gameStarted', {
         myRole: room.players[id].role,
@@ -188,10 +179,12 @@ io.on('connection', (socket) => {
     startNightPhase(room);
   });
 
-  // Start Night Phase
+  // Start Night Phase (No Timer, waits for all active roles)
   function startNightPhase(room) {
     room.state = 'NIGHT';
     room.nightActions = {};
+    room.votes = {};
+    clearInterval(room.timer);
 
     io.to(room.code).emit('phaseChange', {
       phase: 'NIGHT',
@@ -207,14 +200,10 @@ io.on('connection', (socket) => {
     const player = room.players[socket.id];
     if (!player || !player.isAlive) return;
 
-    room.nightActions[player.role] = targetId;
+    const target = room.players[targetId];
+    if (!target || !target.isAlive) return; // Prevent targeting dead people
 
-    // Special Case: Police Action gives immediate direct response to police player
-    if (player.role === 'POLICE' && targetId) {
-      const targetPlayer = room.players[targetId];
-      const result = investigatePlayer(targetPlayer);
-      socket.emit('policeResult', { targetName: targetPlayer.name, result });
-    }
+    room.nightActions[player.role] = targetId;
 
     // Check if all living night roles have submitted
     const activeRoles = Object.values(room.players)
@@ -231,20 +220,54 @@ io.on('connection', (socket) => {
         io.to(room.code).emit('gameOver', { winner, players: Object.values(room.players) });
         room.state = 'LOBBY';
       } else {
-        startDayPhase(room, eliminated);
+        // Evaluate Police Result and send it secretly at dawn
+        const policePlayer = Object.values(room.players).find(p => p.role === 'POLICE');
+        if (policePlayer && policePlayer.isAlive && room.nightActions['POLICE']) {
+          const suspect = room.players[room.nightActions['POLICE']];
+          if (suspect) {
+            const result = investigatePlayer(suspect);
+            // Sent ONLY to the police client for their dedicated UI box
+            io.to(policePlayer.id).emit('policeResultBox', { targetName: suspect.name, result });
+          }
+        }
+        
+        startDayDiscussionPhase(room, eliminated);
       }
     }
   });
 
-  // Start Day Phase
-  function startDayPhase(room, eliminatedNames) {
-    room.state = 'DAY';
-    room.votes = {};
+  // Start Day Discussion Phase (90s)
+  function startDayDiscussionPhase(room, eliminatedNames) {
+    room.state = 'DAY_DISCUSSION';
     room.timeLeft = 90;
 
     io.to(room.code).emit('phaseChange', {
-      phase: 'DAY',
+      phase: 'DAY_DISCUSSION',
       eliminatedNames,
+      players: Object.values(room.players),
+      timeLeft: room.timeLeft
+    });
+
+    clearInterval(room.timer);
+    room.timer = setInterval(() => {
+      room.timeLeft -= 1;
+      io.to(room.code).emit('timerUpdate', room.timeLeft);
+
+      if (room.timeLeft <= 0) {
+        clearInterval(room.timer);
+        startDayVotePhase(room);
+      }
+    }, 1000);
+  }
+
+  // Start Day Voting Phase (15s)
+  function startDayVotePhase(room) {
+    room.state = 'DAY_VOTE';
+    room.votes = {};
+    room.timeLeft = 15;
+
+    io.to(room.code).emit('phaseChange', {
+      phase: 'DAY_VOTE',
       players: Object.values(room.players),
       timeLeft: room.timeLeft
     });
@@ -264,15 +287,18 @@ io.on('connection', (socket) => {
   // Handle Vote
   socket.on('submitVote', ({ roomCode, targetId }) => {
     const room = rooms[roomCode];
-    if (!room || room.state !== 'DAY') return;
+    if (!room || room.state !== 'DAY_VOTE') return;
 
     const player = room.players[socket.id];
     if (!player || !player.isAlive) return;
 
+    const target = room.players[targetId];
+    if (!target || !target.isAlive) return; // Cannot vote for ghosts
+
     room.votes[socket.id] = targetId;
     io.to(room.code).emit('voteUpdated', { voterId: socket.id, targetId });
 
-    // Check if all living players voted
+    // If all living players have voted, end timer early
     const livingCount = Object.values(room.players).filter(p => p.isAlive).length;
     if (Object.keys(room.votes).length >= livingCount) {
       clearInterval(room.timer);
@@ -280,7 +306,7 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Tally Votes at Day End
+  // Tally Votes (Skips are inherently ignored since they don't submit a vote)
   function tallyVotes(room) {
     const voteCounts = {};
     Object.values(room.votes).forEach((targetId) => {
@@ -314,6 +340,7 @@ io.on('connection', (socket) => {
       room.state = 'LOBBY';
     } else {
       io.to(room.code).emit('dayResult', { lynchedPlayerName });
+      // Wait a moment for UI to show results before jumping to night
       setTimeout(() => {
         startNightPhase(room);
       }, 4000);
@@ -330,7 +357,7 @@ io.on('connection', (socket) => {
     io.to(room.code).emit('chatMessage', {
       sender: player.name,
       message,
-      role: player.role === 'POLICE' ? 'POLICE' : null // Only show Police status if applicable
+      role: player.role === 'POLICE' ? 'POLICE' : null 
     });
   });
 

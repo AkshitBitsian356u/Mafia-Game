@@ -21,12 +21,27 @@
     }
     .glow-red { box-shadow: 0 0 25px rgba(239, 68, 68, 0.25); }
     .glow-blue { box-shadow: 0 0 25px rgba(59, 130, 246, 0.25); }
+    
+    /* Animations for Endgame Screen */
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes scaleUp { from { transform: scale(0.9); } to { transform: scale(1); } }
+    .animate-fade-in { animation: fadeIn 1s ease-out forwards; }
+    .animate-scale-up { animation: scaleUp 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
   </style>
 </head>
 <body class="min-h-screen flex flex-col items-center justify-center p-4">
 
+  <!-- ENDGAME OVERLAY (Hidden by default) -->
+  <section id="endgameView" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-xl">
+    <div class="text-center px-4 animate-scale-up">
+      <h1 id="endgameTitle" class="text-6xl md:text-8xl font-black cinzel tracking-widest uppercase shadow-black drop-shadow-2xl"></h1>
+      <p id="endgameSub" class="text-xl md:text-2xl text-slate-300 mt-6 font-semibold tracking-wide"></p>
+      <button onclick="location.reload()" class="mt-10 bg-white/10 hover:bg-white/20 border border-white/20 text-white px-8 py-3 rounded-full font-bold transition">Return to Lobby</button>
+    </div>
+  </section>
+
   <!-- APP CONTAINER -->
-  <div class="w-full max-w-4xl glass rounded-3xl p-6 md:p-8 shadow-2xl transition-all duration-500">
+  <div class="w-full max-w-5xl glass rounded-3xl p-6 md:p-8 shadow-2xl transition-all duration-500">
     
     <!-- HEADER -->
     <header class="flex flex-col md:flex-row justify-between items-center pb-6 border-b border-white/10 gap-4">
@@ -80,25 +95,31 @@
     <section id="gameView" class="hidden mt-6 space-y-6">
       
       <!-- STATUS BANNER & HIDDEN ROLE CARD -->
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
         <!-- Private Role Card -->
         <div id="roleCard" class="glass p-5 rounded-2xl relative overflow-hidden group border border-white/10 cursor-pointer">
-          <div class="text-xs uppercase tracking-wider text-slate-400 font-bold">Your Identity (Secret)</div>
+          <div class="text-xs uppercase tracking-wider text-slate-400 font-bold">Your Identity</div>
           <div id="roleTitle" class="text-2xl font-black text-red-500 cinzel mt-1">???</div>
-          <p id="roleDesc" class="text-xs text-slate-400 mt-2">Hover or tap to inspect your private instructions.</p>
+          <p id="roleDesc" class="text-[10px] text-slate-400 mt-2 leading-tight">Hover or tap to inspect your private instructions.</p>
         </div>
 
         <!-- Public Revealed Info (Police) -->
-        <div class="glass p-5 rounded-2xl border border-blue-500/30 glow-blue">
+        <div class="glass p-5 rounded-2xl border border-blue-500/30">
           <div class="text-xs uppercase tracking-wider text-blue-400 font-bold">Known Authority</div>
           <div id="policeName" class="text-xl font-bold text-slate-100 mt-1">Searching...</div>
-          <p class="text-xs text-slate-400 mt-1">Police officer's public identity is visible to everyone.</p>
+          <p class="text-[10px] text-slate-400 mt-1 leading-tight">Public Police identity visible to everyone.</p>
+        </div>
+
+        <!-- DEDICATED POLICE RESULT BOX (Hidden unless you are police getting a result) -->
+        <div id="policeDedicatedBox" class="hidden glass p-5 rounded-2xl border border-blue-400 glow-blue flex flex-col justify-center">
+          <div class="text-xs uppercase tracking-wider text-blue-300 font-bold">God's Response</div>
+          <div id="policeBoxContent" class="text-sm font-semibold text-slate-100 mt-2"></div>
         </div>
 
         <!-- Phase & Timer -->
-        <div class="glass p-5 rounded-2xl flex flex-col justify-center items-center text-center">
-          <div id="phaseIndicator" class="text-xs uppercase font-extrabold tracking-widest px-3 py-1 rounded-full bg-amber-500/20 text-amber-300">DAY PHASE</div>
-          <div id="timerDisplay" class="text-4xl font-black mt-2 text-slate-100 font-mono">90s</div>
+        <div class="glass p-5 rounded-2xl flex flex-col justify-center items-center text-center md:col-span-1" id="timerContainer">
+          <div id="phaseIndicator" class="text-[10px] uppercase font-extrabold tracking-widest px-3 py-1 rounded-full bg-amber-500/20 text-amber-300">DAY PHASE</div>
+          <div id="timerDisplay" class="text-4xl font-black mt-2 text-slate-100 font-mono">--</div>
         </div>
       </div>
 
@@ -107,24 +128,27 @@
         
         <!-- LIVING PLAYERS & ACTIONS (7 COLS) -->
         <div class="md:col-span-7 flex flex-col gap-4">
-          <h3 class="text-sm font-bold text-slate-300 tracking-wider uppercase">Town Members</h3>
-          <div id="gamePlayerGrid" class="grid grid-cols-2 gap-3"></div>
+          <h3 class="text-sm font-bold text-slate-300 tracking-wider uppercase flex justify-between">
+            <span>Town Members</span>
+            <span id="aliveStatusText" class="text-emerald-400 text-xs"></span>
+          </h3>
+          <div id="gamePlayerGrid" class="grid grid-cols-2 md:grid-cols-3 gap-3"></div>
 
           <!-- Role Action Panel -->
           <div id="actionPanel" class="hidden glass p-4 rounded-2xl border border-red-500/30">
-            <h4 id="actionTitle" class="font-bold text-sm text-red-400">Perform Night Action</h4>
-            <p id="actionPrompt" class="text-xs text-slate-400 mt-1">Select a target from the list above.</p>
-            <button id="confirmActionBtn" class="mt-3 w-full bg-red-600 hover:bg-red-700 text-white text-xs font-bold py-2 rounded-lg transition">Confirm Target</button>
+            <h4 id="actionTitle" class="font-bold text-sm text-red-400">Perform Action</h4>
+            <p id="actionPrompt" class="text-xs text-slate-400 mt-1">Select a valid target from the list above.</p>
+            <button id="confirmActionBtn" class="mt-3 w-full bg-red-600 hover:bg-red-700 text-white text-xs font-bold py-3 rounded-lg transition uppercase tracking-widest">Confirm Target</button>
           </div>
         </div>
 
         <!-- CHAT & EVENT LOG (5 COLS) -->
         <div class="md:col-span-5 flex flex-col h-96 glass rounded-2xl p-4 border border-white/10">
           <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Town Square Chat</h3>
-          <div id="chatBox" class="flex-1 overflow-y-auto space-y-2 text-xs pr-2"></div>
+          <div id="chatBox" class="flex-1 overflow-y-auto space-y-2 text-xs pr-2 pb-2"></div>
           <form id="chatForm" class="mt-3 flex gap-2">
-            <input id="chatInput" type="text" placeholder="Discuss your suspicions..." class="flex-1 bg-slate-900/90 border border-white/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-red-500"/>
-            <button type="submit" class="bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-xl text-xs font-bold">Send</button>
+            <input id="chatInput" type="text" placeholder="Discuss your suspicions..." class="flex-1 bg-slate-900/90 border border-white/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-red-500 transition"/>
+            <button type="submit" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition">Send</button>
           </form>
         </div>
 
@@ -142,6 +166,7 @@
     let myRole = null;
     let currentPhase = null;
     let selectedTargetId = null;
+    let globalPlayers = [];
 
     // Check URL parameters for direct link join
     const urlParams = new URLSearchParams(window.location.search);
@@ -214,14 +239,12 @@
     // GAME START
     socket.on('gameStarted', ({ myRole: role, policePlayer, players }) => {
       myRole = role;
+      globalPlayers = players;
       lobbyView.classList.add('hidden');
       gameView.classList.remove('hidden');
 
-      // Update Private Role Info
       document.getElementById('roleTitle').innerText = role;
       document.getElementById('roleDesc').innerText = getRoleDescription(role);
-
-      // Reveal Public Police
       document.getElementById('policeName').innerText = policePlayer ? policePlayer.name : 'None';
     });
 
@@ -230,7 +253,7 @@
         case 'MAFIA': return 'Eliminate villagers each night without getting caught.';
         case 'DOCTOR': return 'Protect one person each night. Protect yourself to stay safe.';
         case 'SEX_WORKER': return 'Visit someone at night. High risk, high reward.';
-        case 'POLICE': return 'Investigate suspects at night to uncover alignment.';
+        case 'POLICE': return 'Investigate suspects at night. Wait for day to get results.';
         default: return 'Use discussion and voting during the day to find the Mafia.';
       }
     }
@@ -239,17 +262,26 @@
     socket.on('phaseChange', ({ phase, eliminatedNames, players, timeLeft }) => {
       currentPhase = phase;
       selectedTargetId = null;
+      globalPlayers = players;
 
       const indicator = document.getElementById('phaseIndicator');
-      indicator.innerText = `${phase} PHASE`;
-      indicator.className = phase === 'NIGHT' 
-        ? 'text-xs uppercase font-extrabold tracking-widest px-3 py-1 rounded-full bg-purple-500/20 text-purple-300'
-        : 'text-xs uppercase font-extrabold tracking-widest px-3 py-1 rounded-full bg-amber-500/20 text-amber-300';
-
-      if (eliminatedNames && eliminatedNames.length > 0) {
-        appendLog(`Night Results: ${eliminatedNames.join(', ')} were eliminated!`, 'text-red-400');
-      } else if (phase === 'DAY') {
-        appendLog(`Night Results: Everyone survived the night!`, 'text-emerald-400');
+      indicator.innerText = phase.replace('_', ' ') + ' PHASE';
+      
+      // Update Timer & Indicator styles
+      if (phase === 'NIGHT') {
+        indicator.className = 'text-[10px] uppercase font-extrabold tracking-widest px-3 py-1 rounded-full bg-purple-500/20 text-purple-300';
+        document.getElementById('timerDisplay').innerText = '∞';
+        document.getElementById('policeDedicatedBox').classList.add('hidden'); // hide police box at night start
+      } else if (phase === 'DAY_DISCUSSION') {
+        indicator.className = 'text-[10px] uppercase font-extrabold tracking-widest px-3 py-1 rounded-full bg-blue-500/20 text-blue-300';
+        if (eliminatedNames && eliminatedNames.length > 0) {
+          appendLog(`Night Results: ${eliminatedNames.join(', ')} were found dead!`, 'text-red-400 font-bold');
+        } else {
+          appendLog(`Night Results: Everyone survived the night!`, 'text-emerald-400');
+        }
+      } else if (phase === 'DAY_VOTE') {
+        indicator.className = 'text-[10px] uppercase font-extrabold tracking-widest px-3 py-1 rounded-full bg-amber-500/20 text-amber-300';
+        appendLog(`Voting has begun! You have 15 seconds.`, 'text-amber-400 font-bold');
       }
 
       renderPlayerGrid(players);
@@ -257,24 +289,48 @@
     });
 
     socket.on('timerUpdate', (seconds) => {
-      document.getElementById('timerDisplay').innerText = `${seconds}s`;
+      if (currentPhase !== 'NIGHT') {
+        document.getElementById('timerDisplay').innerText = `${seconds}s`;
+      }
     });
 
     // PLAYER GRID & SELECTION
     function renderPlayerGrid(players) {
       const grid = document.getElementById('gamePlayerGrid');
-      grid.innerHTML = players.map(p => `
-        <div onclick="selectTarget('${p.id}')" id="player-card-${p.id}" class="glass p-3 rounded-xl border ${p.isAlive ? 'border-white/10 hover:border-red-500/50 cursor-pointer' : 'border-red-900/30 opacity-40'} transition flex flex-col justify-between">
-          <div class="flex justify-between items-center text-xs">
-            <span class="font-bold ${p.isAlive ? 'text-slate-200' : 'text-slate-500 line-through'}">${p.name}</span>
-            ${p.id === myPlayerId ? '<span class="text-xs text-red-400 font-bold">(You)</span>' : ''}
+      const me = players.find(p => p.id === myPlayerId);
+      
+      const statusText = document.getElementById('aliveStatusText');
+      if (me && !me.isAlive) {
+        statusText.innerText = "YOU ARE DEAD";
+        statusText.className = "text-red-500 text-xs font-bold uppercase tracking-widest";
+      } else {
+        statusText.innerText = "";
+      }
+
+      grid.innerHTML = players.map(p => {
+        // Only allow pointer if player is alive AND I am alive
+        const canClick = p.isAlive && me && me.isAlive;
+        const pointerClass = canClick ? 'hover:border-red-500/50 cursor-pointer border-white/10' : 'border-red-900/30 opacity-40 cursor-not-allowed';
+        const textClass = p.isAlive ? 'text-slate-200' : 'text-slate-500 line-through';
+
+        return `
+        <div onclick="selectTarget('${p.id}')" id="player-card-${p.id}" class="glass p-3 rounded-xl border ${pointerClass} transition flex flex-col justify-between h-20">
+          <div class="flex justify-between items-start text-xs">
+            <span class="font-bold ${textClass} break-words pr-2">${p.name}</span>
+            ${p.id === myPlayerId ? '<span class="text-[10px] text-red-400 font-bold shrink-0">(You)</span>' : ''}
           </div>
-          <div class="text-[10px] text-slate-500 mt-2">${p.isAlive ? 'ALIVE' : 'ELIMINATED'}</div>
+          <div class="text-[10px] font-bold tracking-wider ${p.isAlive ? 'text-slate-500' : 'text-red-900/70'}">${p.isAlive ? 'ALIVE' : 'DEAD'}</div>
         </div>
-      `).join('');
+      `}).join('');
     }
 
     function selectTarget(id) {
+      const me = globalPlayers.find(p => p.id === myPlayerId);
+      if (!me || !me.isAlive) return; // Dead players can't click
+      
+      const targetPlayer = globalPlayers.find(p => p.id === id);
+      if (!targetPlayer || !targetPlayer.isAlive) return; // Can't click dead people
+
       selectedTargetId = id;
       document.querySelectorAll('[id^="player-card-"]').forEach(el => el.classList.remove('border-red-500', 'bg-red-500/10'));
       const card = document.getElementById(`player-card-${id}`);
@@ -287,49 +343,84 @@
       const title = document.getElementById('actionTitle');
       const btn = document.getElementById('confirmActionBtn');
 
+      const me = globalPlayers.find(p => p.id === myPlayerId);
+      if (!me || !me.isAlive) {
+        panel.classList.add('hidden'); // Hide for ghosts
+        return;
+      }
+
       if (currentPhase === 'NIGHT' && ['MAFIA', 'DOCTOR', 'SEX_WORKER', 'POLICE'].includes(myRole)) {
         panel.classList.remove('hidden');
-        title.innerText = `${myRole} Action`;
+        title.innerText = `${myRole} ACTION`;
         btn.onclick = () => {
-          if (!selectedTargetId) return alert('Select a target player first.');
+          if (!selectedTargetId) return alert('Select a valid target player first.');
           socket.emit('submitNightAction', { roomCode: myRoomCode, targetId: selectedTargetId });
           panel.classList.add('hidden');
-          appendLog('Action submitted to GOD.', 'text-purple-300');
+          appendLog('Action submitted to GOD. Waiting for others...', 'text-purple-300');
         };
-      } else if (currentPhase === 'DAY') {
+      } else if (currentPhase === 'DAY_VOTE') {
         panel.classList.remove('hidden');
-        title.innerText = 'Cast Your Vote';
+        title.innerText = 'CAST YOUR VOTE';
         btn.onclick = () => {
-          if (!selectedTargetId) return alert('Select a player to vote out.');
+          if (!selectedTargetId) return alert('Select a valid player to vote out.');
           socket.emit('submitVote', { roomCode: myRoomCode, targetId: selectedTargetId });
           panel.classList.add('hidden');
           appendLog('Vote submitted.', 'text-amber-300');
         };
       } else {
+        // Hides panel during DAY_DISCUSSION phase
         panel.classList.add('hidden');
       }
     }
 
-    // POLICE RESULT
-    socket.on('policeResult', ({ targetName, result }) => {
-      alert(`POLICE REPORT: Is ${targetName} suspicious?\nResult: ${result}`);
-      appendLog(`Investigation on ${targetName}: ${result}`, 'text-blue-400');
+    // POLICE DEDICATED RESULT BOX
+    socket.on('policeResultBox', ({ targetName, result }) => {
+      const box = document.getElementById('policeDedicatedBox');
+      const content = document.getElementById('policeBoxContent');
+      
+      content.innerHTML = `Is <span class="text-white">${targetName}</span> suspicious? <br/><span class="text-2xl font-black text-blue-300">${result}</span>`;
+      box.classList.remove('hidden');
+      
+      appendLog(`[SECRET] Investigation on ${targetName}: ${result}`, 'text-blue-400 font-bold');
     });
 
     // DAY RESULT
     socket.on('dayResult', ({ lynchedPlayerName }) => {
       if (lynchedPlayerName) {
-        appendLog(`Town Vote: ${lynchedPlayerName} was voted out!`, 'text-amber-400');
+        appendLog(`Town Vote: ${lynchedPlayerName} was executed!`, 'text-red-400 font-bold');
       } else {
-        appendLog(`Town Vote: No consensus reached. No one was voted out.`, 'text-slate-400');
+        appendLog(`Town Vote: The town skipped or tied. No one was executed.`, 'text-slate-400');
       }
     });
 
-    // GAME OVER
+    // GAME OVER AESTHETIC SCREEN
     socket.on('gameOver', ({ winner, players }) => {
-      alert(`GAME OVER! Winner: ${winner}`);
-      appendLog(`GAME OVER! Winner: ${winner}`, 'text-red-500 font-bold');
-      renderPlayerGrid(players);
+      const endgameView = document.getElementById('endgameView');
+      const endgameTitle = document.getElementById('endgameTitle');
+      const endgameSub = document.getElementById('endgameSub');
+      
+      // Determine if current player won
+      let iWon = false;
+      if (winner === 'MAFIA' && myRole === 'MAFIA') iWon = true;
+      if (winner === 'VILLAGERS' && myRole !== 'MAFIA') iWon = true;
+
+      if (iWon) {
+        endgameTitle.innerText = "VICTORY";
+        endgameTitle.className = "text-6xl md:text-8xl font-black cinzel tracking-widest uppercase shadow-black drop-shadow-2xl text-emerald-500";
+      } else {
+        endgameTitle.innerText = "DEFEAT";
+        endgameTitle.className = "text-6xl md:text-8xl font-black cinzel tracking-widest uppercase shadow-black drop-shadow-2xl text-red-600";
+      }
+
+      if (winner === 'MAFIA') {
+        endgameSub.innerText = "The Mafia has taken over the town.";
+      } else {
+        endgameSub.innerText = "The Town has successfully purged the Mafia.";
+      }
+
+      // Show overlay
+      endgameView.classList.remove('hidden');
+      endgameView.classList.add('animate-fade-in');
     });
 
     // CHAT
@@ -344,13 +435,13 @@
 
     socket.on('chatMessage', ({ sender, message, role }) => {
       const isPolice = role === 'POLICE';
-      appendLog(`${sender}${isPolice ? ' [POLICE]' : ''}: ${message}`, isPolice ? 'text-blue-300' : 'text-slate-300');
+      appendLog(`${sender}${isPolice ? ' [POLICE]' : ''}: ${message}`, isPolice ? 'text-blue-300 font-semibold' : 'text-slate-300');
     });
 
     function appendLog(text, colorClass = 'text-slate-300') {
       const box = document.getElementById('chatBox');
       const entry = document.createElement('div');
-      entry.className = `p-1.5 rounded-lg bg-slate-900/50 ${colorClass}`;
+      entry.className = `p-2 rounded-lg bg-slate-900/50 ${colorClass}`;
       entry.innerText = text;
       box.appendChild(entry);
       box.scrollTop = box.scrollHeight;
