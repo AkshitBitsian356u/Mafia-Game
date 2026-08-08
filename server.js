@@ -216,7 +216,7 @@ io.on('connection', (socket) => {
     const docCount = 1 + k;     
     const policeCount = 1 + k;  
     const swCount = N > 9 ? 2 : 1;
-    const mafiaCount = Math.max(1, Math.floor(N / 4)); // Scale mafia reasonably to balance
+    const mafiaCount = 1;
 
     let rolesPool = [];
     for(let i=0; i<mafiaCount; i++) rolesPool.push('MAFIA');
