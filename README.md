@@ -59,6 +59,4 @@ Because of simultaneous action calculations and dynamic role scaling, complex ed
 *   **The Broken Chain (Physical Proximity Logic):**
     If Doctor A protects Person A, Doctor B protects Doctor A, Sex Worker visits Doctor B, and Mafia shoots the Sex Worker — only Doctor B and the Sex Worker die. Doctor A and Person A survive because Doctor A is physically at Person A's house, stopping the collateral explosion from traveling further down the line.
 
-*   **Independent Guns (Multi-Mafia Volleys):**
-    In multi-Mafia games, each Mafia operates independently. If multiple Mafias target separate individuals, each attack executes its own collateral and protection checks, allowing up to 6 or 7 players to fall in a single night phase.
 
